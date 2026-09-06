@@ -80,13 +80,19 @@ async function main() {
 
   if (PORT) {
     const app = express();
+    app.use(express.json());
+
     let transport: SSEServerTransport | null = null;
 
-    app.get("/sse", async (req, res) => {
+    const handleSse = async (req: express.Request, res: express.Response) => {
       console.log("🟢 New SSE connection established");
       transport = new SSEServerTransport("/messages", res);
       await server.connect(transport);
-    });
+    };
+
+    // Support both /sse and / for root discovery
+    app.get("/sse", handleSse);
+    app.get("/", handleSse);
 
     app.post("/messages", async (req, res) => {
       if (transport) {
