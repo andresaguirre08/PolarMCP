@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
+import express from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 
 import { userTools } from "./tools/users.js";
 import { exerciseTools } from "./tools/exercises.js";
@@ -74,9 +76,38 @@ for (const [, toolDef] of Object.entries(allTools)) {
 
 // Start the server
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Polar AccessLink MCP Server started");
+  const PORT = process.env.PORT;
+
+  if (PORT) {
+    const app = express();
+    let transport: SSEServerTransport | null = null;
+
+    app.get("/sse", async (req, res) => {
+      console.log("🟢 New SSE connection established");
+      transport = new SSEServerTransport("/messages", res);
+      await server.connect(transport);
+    });
+
+    app.post("/messages", async (req, res) => {
+      if (transport) {
+        await transport.handlePostMessage(req, res);
+      } else {
+        res.status(400).send("No active SSE session");
+      }
+    });
+
+    app.get("/health", (req, res) => {
+      res.status(200).send("OK");
+    });
+
+    app.listen(Number(PORT), "0.0.0.0", () => {
+      console.log(`🚀 Polar AccessLink MCP Server listening on port ${PORT}`);
+    });
+  } else {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error("Polar AccessLink MCP Server started (stdio)");
+  }
 }
 
 main().catch((error) => {
