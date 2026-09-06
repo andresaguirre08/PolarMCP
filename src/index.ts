@@ -82,23 +82,41 @@ async function main() {
     const app = express();
     app.use(express.json());
 
-    let transport: SSEServerTransport | null = null;
+    // Enable CORS for browser clients (like claude.ai)
+    app.use((req, res, next) => {
+      res.header("Access-Control-Allow-Origin", "*");
+      res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-mcp-session-id");
+      if (req.method === "OPTIONS") {
+        return res.sendStatus(200);
+      }
+      next();
+    });
 
-    const handleSse = async (req: express.Request, res: express.Response) => {
-      console.log("🟢 New SSE connection established");
-      transport = new SSEServerTransport("/messages", res);
+    // Store active SSE transports by sessionId
+    const transports = new Map<string, SSEServerTransport>();
+
+    app.get("/sse", async (req, res) => {
+      console.log("🟢 New SSE connection request");
+      const transport = new SSEServerTransport("/messages", res);
+      transports.set(transport.sessionId, transport);
+
+      req.on("close", () => {
+        console.log(`🔌 Connection closed for session ${transport.sessionId}`);
+        transports.delete(transport.sessionId);
+      });
+
       await server.connect(transport);
-    };
-
-    // Support both /sse and / for root discovery
-    app.get("/sse", handleSse);
-    app.get("/", handleSse);
+    });
 
     app.post("/messages", async (req, res) => {
+      const sessionId = req.query.sessionId as string;
+      const transport = transports.get(sessionId);
+
       if (transport) {
         await transport.handlePostMessage(req, res);
       } else {
-        res.status(400).send("No active SSE session");
+        res.status(400).send(`Session ${sessionId} not found`);
       }
     });
 
