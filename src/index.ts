@@ -92,10 +92,38 @@ async function main() {
       next();
     });
 
+    // Discovery endpoints for verification probes
+    app.get("/.well-known/oauth-authorization-server", (req, res) => {
+      res.json({
+        issuer: "https://polarmcp-production.up.railway.app",
+        authorization_endpoint: "https://flow.polar.com/oauth2/authorization",
+        token_endpoint: "https://polarremote.com/v2/oauth2/token",
+        response_types_supported: ["code"],
+        grant_types_supported: ["authorization_code"],
+      });
+    });
+
+    app.get("/.well-known/openid-configuration", (req, res) => {
+      res.json({
+        issuer: "https://polarmcp-production.up.railway.app",
+        authorization_endpoint: "https://flow.polar.com/oauth2/authorization",
+        token_endpoint: "https://polarremote.com/v2/oauth2/token",
+      });
+    });
+
+    app.get("/.well-known/mcp", (req, res) => {
+      res.json({
+        name: "polar-accesslink",
+        version: "1.0.0",
+        transport: "sse",
+        endpoint: "/sse",
+      });
+    });
+
     // Store active SSE transports by sessionId
     const transports = new Map<string, SSEServerTransport>();
 
-    app.get("/sse", async (req, res) => {
+    const handleSse = async (req: express.Request, res: express.Response) => {
       console.log("🟢 New SSE connection request");
       const transport = new SSEServerTransport("/messages", res);
       transports.set(transport.sessionId, transport);
@@ -106,7 +134,9 @@ async function main() {
       });
 
       await server.connect(transport);
-    });
+    };
+
+    app.get("/sse", handleSse);
 
     app.post("/messages", async (req, res) => {
       const sessionId = req.query.sessionId as string;
