@@ -80,7 +80,6 @@ async function main() {
 
   if (PORT) {
     const app = express();
-    app.use(express.json());
 
     // Enable CORS for browser clients (like claude.ai)
     app.use((req, res, next) => {
