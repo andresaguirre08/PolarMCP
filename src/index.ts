@@ -18,9 +18,9 @@ import {
 } from "./tools/physical.js";
 import { oauthTools } from "./tools/oauth.js";
 
-// Combine all tools
+// Combine tools (omit oauthTools if access token is already provided via ENV)
 const allTools = {
-  ...oauthTools,
+  ...(process.env.POLAR_ACCESS_TOKEN ? {} : oauthTools),
   ...userTools,
   ...exerciseTools,
   ...activityTools,
